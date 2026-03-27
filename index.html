@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent 监控面板</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,sans-serif;background:#0f0f23;color:#c8c8e8;min-height:100vh;padding:24px}
+    .header{margin-bottom:28px}
+    .header h1{font-size:1.8rem;font-weight:700;color:#e8e8ff;letter-spacing:.02em;margin-bottom:20px}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+    .stat-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px 20px;backdrop-filter:blur(4px)}
+    .stat-label{font-size:.75rem;color:#8888aa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+    .stat-value{font-size:1.6rem;font-weight:700;color:#e8e8ff;font-variant-numeric:tabular-nums}
+    .stat-card.time .stat-value{font-size:1.1rem}
+    .section{margin-bottom:36px}
+    .section-title{font-size:1.15rem;font-weight:700;color:#e8e8ff;padding-bottom:10px;border-bottom:2px solid rgba(255,255,255,.12);margin-bottom:18px;letter-spacing:.03em}
+    .section-title .count{font-size:.8rem;font-weight:400;color:#6666aa;margin-left:8px}
+    .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+    .session-card{background:#1a1a2e;border-radius:10px;padding:16px 18px;border-left:3px solid #555;transition:transform .18s ease,box-shadow .18s ease;cursor:default}
+    .session-card:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,.5)}
+    .session-card.active{border-left-color:#00ff88}
+    .card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:8px}
+    .card-name{font-size:.95rem;font-weight:600;color:#e0e0f8;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .card-icon{font-size:1.1rem;flex-shrink:0}
+    .card-meta{display:flex;align-items:center;gap:8px;margin-btom:12px;flex-wrap:wrap}
+    .model-tag{font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:20px;letter-spacing:.04em}
+    .model-tag.opus{background:rgba(160,80,255,.2);color:#c084fc;border:1px solid rgba(160,80,255,.3)}
+    .model-tag.sonnet{background:rgba(60,130,255,.2);color:#7eb8ff;border:1px solid rgba(60,130,255,.3)}
+    .model-tag.other{background:rgba(100,100,140,.2);color:#9999bb;border:1px solid rgba(100,100,140,.3)}
+    .channel-tag{font-size:.68rem;color:#6666aa;background:rgba(255,255,255,.04);padding:2px 7px;border-radius:20px;border:1px solid rgba(255,255,255,.07)}
+    .card-splay:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+    .token-label{font-size:.75rem;color:#8888aa}
+    .token-value{font-size:.85rem;font-weight:600;color:#c8c8e8;font-variant-numeric:tabular-nums}
+    .progress-wrap{background:rgba(255,255,255,.07);border-radius:4px;height:5px;overflow:hidden;margin-bottom:12px}
+    .progress-bar{height:100%;border-radius:4px;transition:width .4s ease}
+    .progress-bar.low{background:#00cc66}
+    .progress-bar.mid{background:#f0c040}
+    .progress-bar.high{background:#ff5555}
+    .card-footer{display:flex;align-items:center;justify-content:space-between}
+    .last-active{font-size:.72rem;color:#6666aa}
+    .active-dot{width:7px;height:7px;border-radius:50%;background:#555;flex-shrink:0}
+    .active-dot.on{background:#00ff88;box-shadow:0 0 6px #00ff88}
+    .empty{color:#44445a;font-size:.85rem;padding:20px 0}
+  </style>
+</hea
+  <div class="header">
+    <h1>\ud83c\udfdb\ufe0f Agent \u76d1\u63a7\u9762\u677f</h1>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">\u603b\u4f1a\u8bdd\u6570</div><div class="stat-value" id="stat-total">\u2014</div></div>
+      <div class="stat-card"><div class="stat-label">\u6d3b\u8dc3\u4f1a\u8bdd</div><div class="stat-value" id="stat-active">\u2014</div></div>
+      <div class="stat-card"><div class="stat-label">\u603b Token \u6d88\u8017</div><div class="stat-value" id="stat-tokens">\u2014</div></div>
+      <div clastat-card time"><div class="stat-label">\u5f53\u524d\u65f6\u95f4</div><div class="stat-value" id="stat-time">\u2014</div></div>
+    </div>
+  </div>
+  <div class="section"><div class="section-title">\ud83c\udfdb\ufe0f \u4e3b\u4f1a\u8bdd <span class="count" id="count-main"></span></div><div class="cards-grid" id="grid-main"></div></div>
+  <div class="section"><div class="section-title">\u23f0\ufe0f \u5b9a\u65f6\u4efb\u52a1 <span class="count" id="count-cron"></span></div><div class="cards-grid" id="grid-cron"></div></div>
+  <div class="section"><div class="section-title">\ud83d\udcac \u7fa4\u804a\u4f1a\u8bdd <span class="count" id="count-group"></span></div><div class="cards-grid" id="grid-group"></div></div>
+  <script src="mock-data.js"></script>
+  <script>
+    function fmtTokens(n){if(!n&&n!==0)return"0";if(n>=1e6)return(n/1e6).toFixed(1).replace(/\.0$/,"")+"M";if(n>=1e3)return(n/1e3).toFixed(1).replace(/\.0$/,"")+"k";return String(n)}
+    function relativeTime(ts){var d=Date.now()-ts,s=Math.floor(d/1e3);if(s<10)return"\u521a\u521a";if(s<60)return s+"\u79d2\u524d";var m=Math.floor(s/60);if(m<60)return m+"\u5206\u949f\u524d";var h=Math.floor(m/60);if(h<24)return h+"\u5c0f\u65f6\u524d";return Math.floor(h/24)+"\u5929\u524d"}
+    function isActive(ts){return(Date.now()-ts)<36e5}
+    function modelClass(m){if(!m)return"other";m=m.toLowerCase();if(m.indexOf("opus")!==-1)return"opus";if(m.indexOf("sonnet")!==-1)return"sonnet";return"other"}
+    function progressClass(p){if(p<30)return"low";if(p<70)return"mid";return"high"}
+    function kindIcon(k){if(k==="cron")return"\u23f0\ufe0f";if(k==="group")return"\ud83d\udcac";return"\ud83c\udfdb\ufe0f"}
+    function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+    function renderCard(s){var a=isActive(s.updatedAt),p=s.contextTokens?Math.min(100,MtotalTokens/s.contextTokens*100)):0,l=s.label||s.key;var mt=s.model?"<span class=\"model-tag "+modelClass(s.model)+"\">"+esc(s.model)+"</span>":"";var ct=s.channel?"<span class=\"channel-tag\">"+esc(s.channel)+"</span>":"";return"<div class=\"session-card"+(a?" active":"")+"\"><div class=\"card-top\"><div class=\"card-name\" title=\""+esc(s.key)+"\">"+esc(l)+"</div><div class=\"card-icon\">"+kindIcon(s.kind)+"</div></div><div class=\"card-meta\">"+mt+ct+"</div><div class=\"card-tokens\"><span class=\"token-label\">Token \u7528\u91cf</span><span class=\"token-value\">"+fmtTokens(s.totalTokens)+"</span></div><div class=\"progress-wrap\"><div class=\"progress-bar "+progressClass(p)+"\" style=\"width:"+p+"%\"></div></div><div class=\"card-footer\"><span class=\"last-active\">"+relativeTime(s.updatedAt)+"</span><span class=\"active-dot"+(a?" on":"")+"\"></span></div></div>"}
+    function renderSection(gid,cid,ss){var c=document.getElementById(cid),g=document.getElementById(gid);c.textContent=ss.length?"("+ss.length+")":"";g.innerHTML=ss.length?ss.map(renderCard).join(""):"<div class=\"empty\">\u6682\u65e0\u6570\u636e</div>"}
+    function updateClock(){document.getElementById("stat-time").textContent=new Date().toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
+    function init(){var ss=window.MOCK_SESSIONS||[];var main=ss.filter(function(s){return s.key.indexOf(":main:")!==-1&&s.key.indexOf(":cron:")===-1});var cron=ss.filter(function(s){return s.key.indexOf(":cron:")!==-1});var group=ss.filter(function(s){return s.kind==="group"});document.getElementById("stat-total").textContent=ss.length;document.getElementById("stat-active").textContent=ss.filter(function(s){return isActive(s.updatedAt)}).length;document.getElementById("stat-tokens").textContent=fmtTokens(ss.reduce(function(a,s){return a+(s.totalTokens||0)},0));renderSection("grid-main","count-main",main);renderSection("grid-cron","count-cron",cron);renderSection("grid-group","count-group",group);updateClock()}
+    init();setInterval(updateClock,30000)
+  </script>
+</body>
+</html>
