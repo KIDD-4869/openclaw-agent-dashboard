@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent 监控面板</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f0f23;
+      color: #c8c8e8;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .header { margin-bottom: 28px; }
+
+    .header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #e8e8ff;
+      letter-spacing: 0.02em;
+      margin-bottom: 20px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 14px;
+    }
+
+    .stat-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 16px 20px;
+      backdrop-filter: blur(4px);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: #8888aa;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #e8e8ff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-card.time .stat-value { font-size: 1.1rem; }
+
+    .section { margin-bottom: 36px; }
+
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #e8e8ff;
+      padding-bottom: 10px;
+      border-bottom: 2px solid rgba(255,255,255,0.12);
+      margin-bottom: 18px;
+      letter-spacing: 0.03em;
+    }
+
+    .section-title .count {
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: #6666aa;
+      margin-left: 8px;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    .session-card {
+      background: #1a1a2e;
+      border-radius: 10px;
+      padding: 16px 18px;
+      border-left: 3px solid #555;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      cursor: default;
+    }
+
+    .session-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+    }
+
+    .session-card.active { border-left-color: #00ff88; }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+
+    .card-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #e0e0f8;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .model-tag {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.04em;
+    }
+
+    .model-tag.opus {
+      background: rgba(160,80,255,0.2);
+      color: #c084fc;
+      border: 1px solid rgba(160,80,255,0.3);
+    }
+
+    .model-tag.sonnet {
+      background: rgba(60,130,255,0.2);
+      color: #7eb8ff;
+      border: 1px solid rgba(60,130,255,0.3);
+    }
+
+    .model-tag.other {
+      background: rgba(100,100,140,0.2);
+      color: #9999bb;
+      border: 1px solid rgba(100,100,140,0.3);
+    }
+
+    .channel-tag {
+      font-size: 0.68rem;
+      color: #6666aa;
+      background: rgba(255,255,255,0.04);
+      padding: 2px 7px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .card-tokens {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 7px;
+    }
+
+    .token-label { font-size: 0.75rem; color: #8888aa; }
+
+    .token-value {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #c8c8e8;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress-wrap {
+      background: rgba(255,255,255,0.07);
+      border-radius: 4px;
+      height: 5px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .progress-bar { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+    .progress-bar.low  { background: #00cc66; }
+    .progress-bar.mid  { background: #f0c040; }
+    .progress-bar.high { background: #ff5555; }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .last-active { font-size: 0.72rem; color: #6666aa; }
+
+    .active-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #555;
+      flex-shrink: 0;
+    }
+
+    .active-dot.on { background: #00ff88; box-shadow: 0 0 6px #00ff88; }
+
+    .card-logs {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .log-line {
+      font-size: 0.7rem;
+      color: #7777aa;
+      line-height: 1.4;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .log-line .log-role {
+      font-weight: 600;
+      margin-right: 4px;
+    }
+
+    .log-line .log-role.user { color: #5599ff; }
+    .log-line .log-role.assistant { color: #aa77ff; }
+
+    .empty { color: #44445a; font-size: 0.85rem; padding: 20px 0; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>&#127963;&#65039; Agent &#30417;&#25511;&#38754;&#26495;</h1>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">&#24635;&#20250;&#35805;&#25968;</div>
+        <div class="stat-value" id="stat-total">&#8212;</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">&#27963;&#36259;&#20250;&#35805;</div>
+        <div class="stat-value" id="stat-active">&#8212;</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">&#24635; Token &#28040;&#32791;</div>
+        <div class="stat-value" id="stat-tokens">&#8212;</div>
+      </div>
+      <div class="stat-card time">
+        <div class="stat-label">&#24403;&#21069;&#26102;&#38388;</div>
+        <div class="stat-value" id="stat-time">&#8212;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">&#127963;&#65039; &#20027;&#20250;&#35805; <span class="count" id="count-main"></span></div>
+    <div class="cards-grid" id="grid-main"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">&#9200;&#65039; &#23450;&#26102;&#20219;&#21153; <span class="count" id="count-cron"></span></div>
+    <div class="cards-grid" id="grid-cron"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">&#128172; &#32676;&#32804;&#20250;&#35805; <span class="count" id="count-group"></span></div>
+    <div class="cards-grid" id="grid-group"></div>
+  </div>
+
+  <script>
+    var API_BASE = "http://localhost:3001";
+    var REFRESH_INTERVAL = 30000;
+
+    function fmtTokens(n) {
+      if (!n && n !== 0) return "0";
+      if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+      if (n >= 1000)    return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+      return String(n);
+    }
+
+    function relativeTime(ts) {
+      var diff = Date.now() - ts;
+      var sec  = Math.floor(diff / 1000);
+      if (sec < 10)  return "\u521a\u521a";
+      if (sec < 60)  return sec + "\u79d2\u524d";
+      var min = Math.floor(sec / 60);
+      if (min < 60)  return min + "\u5206\u949f\u524d";
+      var hr = Math.floor(min / 60);
+      if (hr < 24)   return hr + "\u5c0f\u65f6\u524d";
+      return Math.floor(hr / 24) + "\u5929\u524d";
+    }
+
+    function isActive(ts) {
+      return (Date.now() - ts) < 3600 * 1000;
+    }
+
+    function modelClass(model) {
+      if (!model) return "other";
+      var m = model.toLowerCase();
+      if (m.indexOf("opus") !== -1)   return "opus";
+      if (m.indexOf("sonnet") !== -1) return "sonnet";
+      return "other";
+    }
+
+    function progressClass(pct) {
+      if (pct < 30) return "low";
+      if (pct < 70) return "mid";
+      return "high";
+    }
+
+    function kindIcon(kind) {
+      if (kind === "cron")  return "&#9200;&#65039;";
+      if (kind === "group") return "&#128172;";
+      if (kind === "subagent") return "&#129302;";
+      return "&#127963;&#65039;";
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    function renderCard(s) {
+      var active = isActive(s.updatedAt);
+      var pct    = s.contextTokens ? Math.min(100, Math.round(s.totalTokens / s.contextTokens * 100)) : 0;
+      var label  = s.label || s.key;
+      var modelTag = s.model
+        ? "<span class=\"model-tag " + modelClass(s.model) + "\">" + escHtml(s.model) + "</span>"
+        : "";
+      var channelTag = s.channel
+        ? "<span class=\"channel-tag\">" + escHtml(s.channel) + "</span>"
+        : "";
+      var agentTag = s.agentId && s.agentId !== "main"
+        ? "<span class=\"channel-tag\">" + escHtml(s.agentId) + "</span>"
+        : "";
+
+      var logsHtml = "";
+      if (s.recentMessages && s.recentMessages.length > 0) {
+        logsHtml = "<div class=\"card-logs\">";
+        for (var i = 0; i < s.recentMessages.length; i++) {
+          var msg = s.recentMessages[i];
+          var roleLabel = msg.role === "user" ? "\ud83d\udc64" : "\ud83e\udd16";
+          var roleClass = msg.role;
+          logsHtml += "<div class=\"log-line\">"
+            + "<span class=\"log-role " + roleClass + "\">" + roleLabel + "</span>"
+            + escHtml(msg.text)
+            + "</div>";
+        }
+        logsHtml += "</div>";
+      }
+
+      return "<div class=\"session-card" + (active ? " active" : "") + "\">"
+        + "<div class=\"card-top\">"
+        +   "<div class=\"card-name\" title=\"" + escHtml(s.key) + "\">" + escHtml(label) + "</div>"
+        +   "<div class=\"card-icon\">" + kindIcon(s.kind) + "</div>"
+        + "</div>"
+        + "<div class=\"card-meta\">" + modelTag + channelTag + agentTag + "</div>"
+        + "<div class=\"card-tokens\">"
+        +   "<span class=\"token-label\">Token \u7528\u91cf</span>"
+        +   "<span class=\"token-value\">" + fmtTokens(s.totalTokens) + "</span>"
+        + "</div>"
+        + "<div class=\"progress-wrap\">"
+        +   "<div class=\"progress-bar " + progressClass(pct) + "\" style=\"width:" + pct + "%\"></div>"
+        + "</div>"
+        + logsHtml
+        + "<div class=\"card-footer\">"
+        +   "<span class=\"last-active\">" + relativeTime(s.updatedAt) + "</span>"
+        +   "<span class=\"active-dot" + (active ? " on" : "") + "\"></span>"
+        + "</div>"
+        + "</div>";
+    }
+
+    function renderSection(gridId, countId, sessions) {
+      var countEl = document.getElementById(countId);
+      var gridEl  = document.getElementById(gridId);
+      countEl.textContent = sessions.length ? "(" + sessions.length + ")" : "";
+      gridEl.innerHTML = sessions.length
+        ? sessions.map(renderCard).join("")
+        : "<div class=\"empty\">\u6682\u65e0\u6570\u636e</div>";
+    }
+
+    function updateClock() {
+      document.getElementById("stat-time").textContent =
+        new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+
+    function render(sessions) {
+      var main  = sessions.filter(function(s){ return s.kind === "main"; });
+      var cron  = sessions.filter(function(s){ return s.kind === "cron"; });
+      var group = sessions.filter(function(s){ return s.kind === "group"; });
+      var sub   = sessions.filter(function(s){ return s.kind === "subagent"; });
+
+      document.getElementById("stat-total").textContent  = sessions.length;
+      document.getElementById("stat-active").textContent = sessions.filter(function(s){ return isActive(s.updatedAt); }).length;
+      document.getElementById("stat-tokens").textContent = fmtTokens(
+        sessions.reduce(function(a, s){ return a + (s.totalTokens || 0); }, 0)
+      );
+
+      renderSection("grid-main",  "count-main",  main.concat(sub));
+      renderSection("grid-cron",  "count-cron",  cron);
+      renderSection("grid-group", "count-group", group);
+
+      updateClock();
+    }
+
+    function fetchAndRender() {
+      fetch(API_BASE + "/api/sessions")
+        .then(function(r) { return r.json(); })
+        .then(function(data) { render(data.sessions || []); })
+        .catch(function(e) {
+          console.error("Failed to fetch sessions:", e);
+          // fallback to mock data if available
+          if (window.MOCK_SESSIONS) render(window.MOCK_SESSIONS);
+        });
+    }
+
+    fetchAndRender();
+    setInterval(fetchAndRender, REFRESH_INTERVAL);
+    setInterval(updateClock, 1000);
+  </script>
+</body>
+</html>
