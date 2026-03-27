@@ -1,9 +1,101 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
 const PORT = 3001;
 const OPENCLAW_DIR = '/home/node/.openclaw';
+
+// ── 飞书 API：获取群名 ──
+
+let feishuToken = null;
+let feishuTokenExpiry = 0;
+const groupNameCache = {};
+
+function getFeishuConfig() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(OPENCLAW_DIR, 'openclaw.json'), 'utf8'));
+    const feishu = cfg.channels?.feishu;
+    const appId = feishu?.accounts?.default?.appId || feishu?.appId;
+    const appSecret = feishu?.accounts?.default?.appSecret || feishu?.appSecret;
+    return appId && appSecret ? { appId, appSecret } : null;
+  } catch { return null; }
+}
+
+function feishuRequest(options, body) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch { resolve(null); }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
+    if (body) req.write(JSON.stringify(body));
+    req.end();
+  });
+}
+
+async function getFeishuToken() {
+  if (feishuToken && Date.now() < feishuTokenExpiry) return feishuToken;
+  const cfg = getFeishuConfig();
+  if (!cfg) return null;
+  try {
+    const data = await feishuRequest({
+      hostname: 'open.feishu.cn',
+      path: '/open-apis/auth/v3/tenant_access_token/internal',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }, { app_id: cfg.appId, app_secret: cfg.appSecret });
+    if (data?.tenant_access_token) {
+      feishuToken = data.tenant_access_token;
+      feishuTokenExpiry = Date.now() + (data.expire - 300) * 1000;
+      return feishuToken;
+    }
+  } catch {}
+  return null;
+}
+
+async function getGroupName(chatId) {
+  if (groupNameCache[chatId]) return groupNameCache[chatId];
+  const token = await getFeishuToken();
+  if (!token) return null;
+  try {
+    const data = await feishuRequest({
+      hostname: 'open.feishu.cn',
+      path: `/open-apis/im/v1/chats/${chatId}`,
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const name = data?.data?.name;
+    if (name) {
+      groupNameCache[chatId] = name;
+      return name;
+    }
+  } catch {}
+  return null;
+}
+
+async function resolveGroupNames(sessions) {
+  const promises = [];
+  for (const s of sessions) {
+    if (s.kind === 'group' && s.channel === 'feishu') {
+      const match = s.key.match(/:group:(oc_[a-f0-9]+)/);
+      if (match && (!s.label || s.label === match[1] || s.label.startsWith('oc_'))) {
+        promises.push(
+          getGroupName(match[1]).then(name => {
+            if (name) s.label = name;
+          })
+        );
+      }
+    }
+  }
+  await Promise.allSettled(promises);
+}
+
+// ── Agent 配置 ──
 
 function getAgentConfig() {
   try {
@@ -15,6 +107,8 @@ function getAgentConfig() {
     return agents;
   } catch { return {}; }
 }
+
+// ── 加载 Sessions ──
 
 function loadSessions() {
   const agentsDir = path.join(OPENCLAW_DIR, 'agents');
@@ -60,7 +154,7 @@ function loadSessions() {
         label = s.origin?.label || s.displayName || key;
       }
 
-      // 读取最近消息（从文件末尾读取，避免大文件全量加载）
+      // 读取最近消息
       const TAIL_BYTES = 50 * 1024;
       let recentMessages = [];
       if (s.sessionFile) {
@@ -119,7 +213,9 @@ function loadSessions() {
   return results;
 }
 
-const server = http.createServer((req, res) => {
+// ── HTTP Server ──
+
+const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -128,6 +224,7 @@ const server = http.createServer((req, res) => {
   if (req.url === '/api/sessions') {
     try {
       const sessions = loadSessions();
+      await resolveGroupNames(sessions);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ count: sessions.length, sessions }));
     } catch (e) {
@@ -143,11 +240,10 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Serve static files from parent dir
   let filePath = req.url === '/' ? '/index.html' : req.url;
   filePath = path.join(__dirname, filePath);
   const ext = path.extname(filePath);
-  const mime = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json' };
+  const mime = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json' };
 
   try {
     const content = fs.readFileSync(filePath);
@@ -162,4 +258,6 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Agent Dashboard running on http://0.0.0.0:${PORT}`);
   console.log(`Reading from ${OPENCLAW_DIR}/agents/*/sessions/sessions.json`);
+  // 预热群名缓存
+  getFeishuToken().then(() => console.log('Feishu token ready')).catch(() => {});
 });
