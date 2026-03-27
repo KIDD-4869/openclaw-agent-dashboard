@@ -108,6 +108,53 @@ function getAgentConfig() {
   } catch { return {}; }
 }
 
+// ── 读取最近消息 ──
+
+function readRecentMessages(sessionFile, maxCount) {
+  const TAIL_BYTES = 50 * 1024;
+  const messages = [];
+  if (!sessionFile) return messages;
+  try {
+    const stat = fs.statSync(sessionFile);
+    const fd = fs.openSync(sessionFile, 'r');
+    const start = Math.max(0, stat.size - TAIL_BYTES);
+    const buf = Buffer.alloc(Math.min(TAIL_BYTES, stat.size));
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    const tail = buf.toString('utf8');
+    const lines = tail.split('\n').filter(l => l.trim());
+    if (start > 0) lines.shift();
+
+    for (let i = lines.length - 1; i >= 0 && messages.length < maxCount; i--) {
+      try {
+        const entry = JSON.parse(lines[i]);
+        if (entry.type === 'message' && entry.message) {
+          const role = entry.message.role;
+          if (role === 'user' || role === 'assistant') {
+            let text = '';
+            if (typeof entry.message.content === 'string') {
+              text = entry.message.content;
+            } else if (Array.isArray(entry.message.content)) {
+              text = entry.message.content
+                .filter(c => c.type === 'text')
+                .map(c => c.text)
+                .join(' ');
+            }
+            if (text && !text.startsWith('HEARTBEAT') && text !== 'NO_REPLY' && text.length > 2) {
+              messages.unshift({
+                role,
+                text: text.replace(/\n/g, ' ').slice(0, 120),
+                ts: entry.timestamp
+              });
+            }
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+  return messages;
+}
+
 // ── 加载 Sessions ──
 
 function loadSessions() {
@@ -133,6 +180,7 @@ function loadSessions() {
       const totalTokens = s.totalTokens || 0;
       const inputTokens = s.inputTokens || 0;
       const outputTokens = s.outputTokens || 0;
+      const usedTokens = inputTokens + outputTokens;
       const contextTokens = s.contextTokens || 200000;
 
       if (key.includes(':cron:')) {
@@ -154,54 +202,12 @@ function loadSessions() {
         label = s.origin?.label || s.displayName || key;
       }
 
-      // 读取最近消息
-      const TAIL_BYTES = 50 * 1024;
-      let recentMessages = [];
-      if (s.sessionFile) {
-        try {
-          const stat = fs.statSync(s.sessionFile);
-          const fd = fs.openSync(s.sessionFile, 'r');
-          const start = Math.max(0, stat.size - TAIL_BYTES);
-          const buf = Buffer.alloc(Math.min(TAIL_BYTES, stat.size));
-          fs.readSync(fd, buf, 0, buf.length, start);
-          fs.closeSync(fd);
-          const tail = buf.toString('utf8');
-          const lines = tail.split('\n').filter(l => l.trim());
-          if (start > 0) lines.shift();
-
-          for (let i = lines.length - 1; i >= 0 && recentMessages.length < 3; i--) {
-            try {
-              const entry = JSON.parse(lines[i]);
-              if (entry.type === 'message' && entry.message) {
-                const role = entry.message.role;
-                if (role === 'user' || role === 'assistant') {
-                  let text = '';
-                  if (typeof entry.message.content === 'string') {
-                    text = entry.message.content;
-                  } else if (Array.isArray(entry.message.content)) {
-                    text = entry.message.content
-                      .filter(c => c.type === 'text')
-                      .map(c => c.text)
-                      .join(' ');
-                  }
-                  if (text && !text.startsWith('HEARTBEAT') && text !== 'NO_REPLY' && text.length > 2) {
-                    recentMessages.unshift({
-                      role,
-                      text: text.replace(/\n/g, ' ').slice(0, 120),
-                      ts: entry.timestamp
-                    });
-                  }
-                }
-              }
-            } catch {}
-          }
-        } catch {}
-      }
+      const recentMessages = readRecentMessages(s.sessionFile, 3);
 
       results.push({
         key, kind, label, channel, model, agentId,
         sessionId: s.sessionId,
-        contextTokens, totalTokens, inputTokens, outputTokens,
+        contextTokens, totalTokens, inputTokens, outputTokens, usedTokens,
         updatedAt: s.updatedAt || 0,
         compactionCount: s.compactionCount || 0,
         recentMessages,
@@ -210,6 +216,33 @@ function loadSessions() {
   }
 
   results.sort((a, b) => b.updatedAt - a.updatedAt);
+
+  // ── Sub-agent 关联：收集到主会话 ──
+  const mainSessions = results.filter(s => s.kind === 'main');
+  const subagentSessions = results.filter(s => s.kind === 'subagent');
+
+  for (const main of mainSessions) {
+    const tasks = [];
+    for (const sub of subagentSessions) {
+      const active = (Date.now() - sub.updatedAt) < 3600 * 1000;
+      const taskIdFull = sub.key.split(':subagent:')[1] || '';
+      tasks.push({
+        key: sub.key,
+        agentName: sub.label.split(' #')[0] || sub.agentId,
+        taskId: taskIdFull.slice(0, 8),
+        updatedAt: sub.updatedAt,
+        model: sub.model,
+        inputTokens: sub.inputTokens,
+        outputTokens: sub.outputTokens,
+        usedTokens: sub.usedTokens,
+        isActive: active,
+        recentMessages: sub.recentMessages.slice(-1),
+      });
+    }
+    tasks.sort((a, b) => b.updatedAt - a.updatedAt);
+    main.subagentTasks = tasks;
+  }
+
   return results;
 }
 
@@ -258,6 +291,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Agent Dashboard running on http://0.0.0.0:${PORT}`);
   console.log(`Reading from ${OPENCLAW_DIR}/agents/*/sessions/sessions.json`);
-  // 预热群名缓存
   getFeishuToken().then(() => console.log('Feishu token ready')).catch(() => {});
 });
