@@ -33,14 +33,18 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
   startDiscussion: (topic, agents, rounds) => {
-    // Returns the raw Response for SSE streaming
     return fetch('/api/discuss', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ topic, agents, rounds }),
     });
   },
+  // 旧接口（兼容）
   files: () => request('/api/files'),
+  // 新文件浏览器接口
+  fileTree: (dirPath) => request('/api/files/tree?path=' + encodeURIComponent(dirPath || '')),
+  fileContent: (filePath) => request('/api/files/content?path=' + encodeURIComponent(filePath)),
+  // 设置
   settings: () => request('/api/settings'),
   settingsStorage: () => request('/api/settings/storage'),
   settingsUpdate: (data) => request('/api/settings', {
