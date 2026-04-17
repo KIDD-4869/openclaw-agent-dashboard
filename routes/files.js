@@ -125,13 +125,12 @@ router.get('/api/files/content', (req, res) => {
       let lineCount = 0;
 
       if (stat.size > maxSize) {
-        // 大文件：逐行读取
-        const stream = fs.createReadStream(absPath, { encoding: 'utf8', start: 0, end: maxSize });
-        const chunks = [];
-        for await (const chunk of stream) {
-          chunks.push(chunk);
-        }
-        content = chunks.join('');
+        // 大文件：读取前 maxSize 字节
+        const buf = Buffer.alloc(maxSize);
+        const fd = fs.openSync(absPath, 'r');
+        const bytesRead = fs.readSync(fd, buf, 0, maxSize, 0);
+        fs.closeSync(fd);
+        content = buf.slice(0, bytesRead).toString('utf8');
         const lines = content.split('\n');
         if (lines.length > maxLines) {
           content = lines.slice(0, maxLines).join('\n');
