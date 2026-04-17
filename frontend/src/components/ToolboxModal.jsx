@@ -277,7 +277,7 @@ export default function ToolboxModal({ onClose }) {
         </div>
 
         {/* 全屏星空背景 */}
-        {expanded && isStarry && <StarryBackground />}
+        {expanded && isSpecialBg && <StarryBackground />}
         {/* 内容区（可滚动） */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 20, position: 'relative' }}>
           {/* 工具列表层 */}

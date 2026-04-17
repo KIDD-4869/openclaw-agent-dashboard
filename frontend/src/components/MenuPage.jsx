@@ -46,7 +46,7 @@ function Cell({ flavor, type, dishes, onDel, onCell }) {
       onClick={() => empty && onCell(flavor, type)}
     >
       {list.length > 0 && <span className="menu-cell__count">{list.length}品</span>}
-      <div className="me-cell__items">
+      <div className="menu-cell__items">
         {list.map((d, i) => <Bubble key={d.id} d={d} onDel={onDel} idx={i} />)}
       </div>
       {empty && (
@@ -141,7 +141,7 @@ export default function MenuPage({ inModal }) {
         <button className={`menu-tab ${tab === 'dishes' ? 'menu-tab--active' : ''}`} onClick={() => setTab('dishes')}>
           <span className="menu-tab__icon">🥘</span>
           <span className="menu-tab__text">菜品管理</span>
-          <span className="me_count">{dishes.length}</span>
+          <span className="menu-tab__count">{dishes.length}</span>
         </button>
         <button className={`menu-tab ${tab === 'weekly' ? 'menu-tab--active' : ''}`} onClick={() => setTab('weekly')}>
           <span className="menu-tab__icon">📅</span>
