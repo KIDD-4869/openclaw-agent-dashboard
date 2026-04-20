@@ -4,12 +4,12 @@ import { AGENT_ROLES } from '../constants';
 import DiscussBubble from './DiscussBubble';
 
 /**
- * SSE 实时讨论流
- * 实时消息渲染、阵营标签、主持人插话、发言中动画
+ * SSE 实时讨论流 — 协作讨论模式
+ * 所有 agent 围绕议题协作讨论，最终由小葵总结
  */
 function DiscussLive({ topic, agents, rounds, onBack, onDone, sseHook }) {
   const {
-    messages, status, teams, currentSpeaker, currentRound, totalRounds,
+    messages, status, currentSpeaker, currentRound, totalRounds,
     summary, guidance, discussionId, startDiscussion, setStatus,
   } = sseHook;
 
@@ -23,10 +23,8 @@ function DiscussLive({ topic, agents, rounds, onBack, onDone, sseHook }) {
 
   useEffect(() => { scrollToBottom(); }, [messages, currentSpeaker, scrollToBottom]);
 
-  // 组件挂载时自动开始议政
   useEffect(() => {
     startDiscussion(topic, agents, rounds);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleInject() {
@@ -54,16 +52,9 @@ function DiscussLive({ topic, agents, rounds, onBack, onDone, sseHook }) {
         {currentRound > 0 && <span className="discuss-round-info">第 {currentRound}/{totalRounds} 轮</span>}
       </div>
 
-      {teams.pro?.length > 0 && (
-        <div className="discuss-teams-bar">
-          <span className="discuss-team-label tag-pro">正方: {teams.pro.map(a => AGENT_ROLES[a]?.name || a).join('、')}</span>
-          <span className="discuss-team-label tag-con">反方: {teams.con.map(a => AGENT_ROLES[a]?.name || a).join('、')}</span>
-        </div>
-      )}
-
       <div className="discuss-messages">
         {messages.map((msg, idx) => (
-          <DiscussBubble key={idx} message={msg} teams={teams} />
+          <DiscussBubble key={idx} message={msg} />
         ))}
 
         {currentSpeaker && (

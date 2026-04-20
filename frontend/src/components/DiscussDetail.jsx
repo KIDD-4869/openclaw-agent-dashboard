@@ -4,14 +4,12 @@ import { AGENT_ROLES } from '../constants';
 import DiscussBubble from './DiscussBubble';
 
 /**
- * 历史详情查看
- * 显示完整的历史议政记录
+ * 历史详情查看 — 协作讨论模式
  */
 function DiscussDetail({ discussionId, onBack }) {
   const [detailData, setDetailData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 加载详情数据
   useEffect(() => {
     (async () => {
       try {
@@ -58,28 +56,16 @@ function DiscussDetail({ discussionId, onBack }) {
         <span>轮数: {detailData.rounds}</span>
         <span>{new Date(detailData.createdAt).toLocaleString('zh-CN', { hour12: false })}</span>
       </div>
-      {detailData.teams && (
-        <div className="discuss-teams-bar">
-          <span className="discuss-team-label tag-pro">正方: {detailData.teams.pro?.map(a => AGENT_ROLES[a]?.name || a).join('、')}</span>
-          <span className="discuss-team-label tag-con">反方: {detailData.teams.con?.map(a => AGENT_ROLES[a]?.name || a).join('、')}</span>
-        </div>
-      )}
       {detailData.guidancePrompt && (
-        <DiscussBubble
-          message={{ type: 'guidance', content: detailData.guidancePrompt }}
-          teams={detailData.teams}
-        />
+        <DiscussBubble message={{ type: 'guidance', content: detailData.guidancePrompt }} />
       )}
       <div className="discuss-messages">
         {(detailData.messages || []).map((msg, idx) => (
-          <DiscussBubble key={idx} message={msg} teams={detailData.teams} />
+          <DiscussBubble key={idx} message={msg} />
         ))}
       </div>
       {detailData.summary && (
-        <DiscussBubble
-          message={{ type: 'summary', content: detailData.summary }}
-          teams={detailData.teams}
-        />
+        <DiscussBubble message={{ type: 'summary', content: detailData.summary }} />
       )}
     </div>
   );

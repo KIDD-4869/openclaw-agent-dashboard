@@ -7,7 +7,7 @@ import StarryBackground from './StarryBackground';
 
 /** 工具列表配置 */
 const TOOLS = [
-  { id: 'discuss', icon: '💬', name: '议政', desc: 'Agent 多方辩论' },
+  { id: 'discuss', icon: '💬', name: '议政', desc: 'Agent 自主讨论' },
   { id: 'files', icon: '📂', name: '文件浏览器', desc: '浏览 OpenClaw 完整目录结构' },
   { id: 'sbti', icon: '🧠', name: 'SBTI 人格测试', desc: '比 MBTI 更真实的灵魂审判' },
   { id: 'menu', icon: '🍳', name: '菜谱', desc: '一键生成一周菜单' },

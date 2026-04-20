@@ -1,28 +1,23 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { api } from '../api';
 
 /**
- * 议政 SSE 事件处理 hook
- * 封装 SSE 连接、事件解析、状态管理
+ * 议政 SSE 事件处理 hook — 协作讨论模式
  */
 export function useDiscussSSE() {
   const [messages, setMessages] = useState([]);
-  const [status, setStatus] = useState('idle'); // idle | running | done | error
-  const [teams, setTeams] = useState({ pro: [], con: [] });
+  const [status, setStatus] = useState('idle');
   const [currentSpeaker, setCurrentSpeaker] = useState(null);
   const [currentRound, setCurrentRound] = useState(0);
   const [totalRounds, setTotalRounds] = useState(0);
   const [summary, setSummary] = useState('');
   const [guidance, setGuidance] = useState('');
   const [discussionId, setDiscussionId] = useState(null);
-  const abortRef = useRef(null);
 
-  // 处理单个 SSE 事件
   const handleSSEEvent = useCallback((evt) => {
     switch (evt.type) {
       case 'start':
         setDiscussionId(evt.id);
-        setTeams(evt.teams || { pro: [], con: [] });
         setTotalRounds(evt.rounds);
         break;
       case 'guidance':
@@ -64,11 +59,9 @@ export function useDiscussSSE() {
     }
   }, []);
 
-  // 开始议政，建立 SSE 流
   const startDiscussion = useCallback(async (topic, selectedAgents, rounds) => {
     setMessages([]);
     setStatus('running');
-    setTeams({ pro: [], con: [] });
     setCurrentSpeaker(null);
     setCurrentRound(0);
     setSummary('');
@@ -96,10 +89,9 @@ export function useDiscussSSE() {
           try {
             const evt = JSON.parse(line.slice(6));
             handleSSEEvent(evt);
-          } catch { /* 跳过格式错误的数据 */ }
+          } catch {}
         }
       }
-      // 处理剩余 buffer
       if (buffer.startsWith('data: ')) {
         try { handleSSEEvent(JSON.parse(buffer.slice(6))); } catch {}
       }
@@ -110,7 +102,7 @@ export function useDiscussSSE() {
   }, [handleSSEEvent]);
 
   return {
-    messages, status, teams, currentSpeaker, currentRound, totalRounds,
+    messages, status, currentSpeaker, currentRound, totalRounds,
     summary, guidance, discussionId, startDiscussion, setStatus,
   };
 }
